@@ -27,7 +27,12 @@ jobs:
       - name: Install Dependencies
         run: npm install --omit=optional
 
-      - name: Build & Publish Release
+      - name: Build & Publish Release (Tags)
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder build --win --publish always
+
+      - name: Build Check (Branch Push)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: npx electron-builder build --win --publish never
