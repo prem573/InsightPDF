@@ -26,12 +26,13 @@ jobs:
         run: npm install --omit=optional
 
       - name: Update Version in package.json
+        shell: bash
         run: |
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             const parts = pkg.version.split('.');
-            pkg.version = \`\${parts[0]}.\${parts[1]}.\${process.env.GITHUB_RUN_NUMBER || 0}\`;
+            pkg.version = parts[0] + '.' + parts[1] + '.' + (process.env.GITHUB_RUN_NUMBER || '0');
             console.log('Building version:', pkg.version);
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2), 'utf8');
           "
