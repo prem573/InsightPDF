@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   selectPdf: () => ipcRenderer.invoke('select-pdf'),
+  getStartPdfPath: () => ipcRenderer.invoke('get-start-pdf-path'),
   readPdfFile: (filePath) => ipcRenderer.invoke('read-pdf-file', filePath),
   loadConfig: () => ipcRenderer.invoke('load-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),

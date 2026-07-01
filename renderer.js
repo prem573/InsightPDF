@@ -204,6 +204,12 @@ async function initApp() {
       await loadPdf(filePath);
     }
   });
+
+  // Check if there is a startup PDF file passed via arguments
+  const startupPdfPath = await window.api.getStartPdfPath();
+  if (startupPdfPath) {
+    await loadPdf(startupPdfPath);
+  }
 }
 
 // Apply theme to document body

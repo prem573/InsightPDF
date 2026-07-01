@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
+let pdfToOpen = null;
+let isRendererReady = false;
 
 // Prevent multiple instances on Windows
 const gotTheLock = app.requestSingleInstanceLock();
@@ -27,6 +29,9 @@ function getPdfPathFromArgv(argv) {
   return null;
 }
 
+// Parse startup argv
+pdfToOpen = getPdfPathFromArgv(process.argv);
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -48,12 +53,10 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    
-    // Check if app was opened with a PDF file argument
-    const pdfPath = getPdfPathFromArgv(process.argv);
-    if (pdfPath) {
-      mainWindow.webContents.send('open-pdf', pdfPath);
-    }
+  });
+
+  mainWindow.webContents.on('did-start-loading', () => {
+    isRendererReady = false;
   });
 
   mainWindow.on('closed', () => {
@@ -69,7 +72,11 @@ app.on('second-instance', (event, commandLine, workingDirectory) => {
 
     const pdfPath = getPdfPathFromArgv(commandLine);
     if (pdfPath) {
-      mainWindow.webContents.send('open-pdf', pdfPath);
+      if (isRendererReady) {
+        mainWindow.webContents.send('open-pdf', pdfPath);
+      } else {
+        pdfToOpen = pdfPath;
+      }
     }
   }
 });
@@ -93,6 +100,13 @@ app.on('window-all-closed', () => {
 // --- IPC Handlers ---
 
 // File associations and selection
+ipcMain.handle('get-start-pdf-path', () => {
+  isRendererReady = true;
+  const pathToSend = pdfToOpen;
+  pdfToOpen = null; // consume once
+  return pathToSend;
+});
+
 ipcMain.handle('select-pdf', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
