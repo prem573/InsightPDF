@@ -407,19 +407,18 @@ body {
   background-color: var(--bg-tabs);
   border-bottom: 1px solid var(--border-color);
   display: flex;
-  align-items: flex-end;
+  align-items: center; /* Center items vertically */
   padding: 0 16px;
   z-index: 10;
+  gap: 2px;
 }
 
 .app-tab {
-  height: 32px;
+  height: 28px;
   background-color: transparent;
   border: 1px solid transparent;
-  border-bottom: none;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-  padding: 0 16px;
+  border-radius: 6px; /* Float as rounded pills/capsules */
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -427,23 +426,45 @@ body {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  margin-right: 2px;
+  margin-right: 4px;
   transition: var(--transition);
+  position: relative;
 }
 .app-tab:hover {
-  background-color: rgba(255, 255, 255, 0.4);
+  background-color: var(--bg-hover);
   color: var(--text-primary);
 }
 .app-tab.active {
-  background-color: var(--bg-toolbar);
+  background-color: var(--bg-panel); /* Floating background container */
   border-color: var(--border-color);
   color: var(--accent);
   z-index: 2;
-  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
 }
 .dark-theme .app-tab.active {
-  background-color: var(--bg-toolbar);
+  background-color: var(--bg-panel);
   border-color: var(--border-color);
+}
+
+/* Inactive dividers between tabs */
+.app-tab::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background-color: var(--border-color);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.app-tab:hover::after,
+.app-tab.active::after,
+.app-tab:has(+ .app-tab.active)::after,
+.app-tab:has(+ #tabs-dynamic-container > .app-tab.active)::after,
+#tabs-dynamic-container .app-tab:last-child::after {
+  opacity: 0;
 }
 
 .tab-icon {
@@ -464,6 +485,37 @@ body {
 .tab-close-btn:hover {
   background-color: rgba(0, 0, 0, 0.1);
   color: var(--accent);
+}
+
+.tab-add-btn {
+  height: 26px;
+  width: 26px;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  margin-left: 12px; /* Extra spacing for divider */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  align-self: center;
+  position: relative;
+}
+.tab-add-btn::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background-color: var(--border-color);
+  opacity: 0.6;
+}
+.tab-add-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* 5. PDF Toolbar Styling */
@@ -1053,6 +1105,11 @@ body {
   color: var(--text-muted);
 }
 
+.btn-sidebar-collapse:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+}
+
 .sidebar-empty-state {
   padding: 24px 16px;
   font-size: 11px;
@@ -1395,7 +1452,7 @@ body {
 
 /* Options Container */
 .options-container {
-  padding: 16px;
+  padding: 0;
   border-bottom: 1px solid var(--border-light);
   background-color: var(--bg-toolbar);
 }
@@ -1406,7 +1463,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .form-group {
@@ -1468,6 +1525,39 @@ textarea.form-control {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+}
+
+.output-content {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease-out;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.options-content {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease-out;
+}
+
+/* Collapsible layout for summary panels */
+.options-container.collapsed .options-content {
+  grid-template-rows: 0fr;
+}
+.options-container.collapsed .chevron-icon {
+  transform: rotate(-90deg) !important;
+}
+
+.summary-output-container.collapsed {
+  flex: 0 0 auto !important;
+}
+.summary-output-container.collapsed .output-content {
+  grid-template-rows: 0fr;
+}
+.summary-output-container.collapsed .chevron-icon {
+  transform: rotate(-90deg) !important;
 }
 
 .output-header {
@@ -1949,4 +2039,15 @@ textarea.form-control {
 @keyframes slideDown {
   from { transform: translateY(-100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* 19. Multi-Tab Container Toggle Styles */
+.tab-chat-container, .tab-summary-container, .tab-thumbs-container, .tab-bookmarks-container, .tab-search-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+.tab-chat-container.hidden, .tab-summary-container.hidden, .tab-thumbs-container.hidden, .tab-bookmarks-container.hidden, .tab-search-container.hidden {
+  display: none !important;
 }

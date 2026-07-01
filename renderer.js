@@ -29,6 +29,10 @@ let config = {
 // Chat History State
 let chatHistory = [];
 
+// Multi-Tab State
+let tabs = [];
+let activeTabId = 'home';
+
 // DOM Elements
 const elHeaderFileName = document.getElementById('header-file-name');
 const elBtnOpenFile = document.getElementById('btn-open-file');
@@ -37,9 +41,7 @@ const elBtnSettings = document.getElementById('btn-settings');
 // Tab Pages DOM
 const elTabHome = document.getElementById('tab-home');
 const elTabToolsDirectory = document.getElementById('tab-tools-directory');
-const elTabActivePdf = document.getElementById('tab-active-pdf');
-const elActivePdfTitle = document.getElementById('active-pdf-title');
-const elBtnClosePdfTab = document.getElementById('btn-close-pdf-tab');
+const elTabsDynamicContainer = document.getElementById('tabs-dynamic-container');
 
 const elPageHome = document.getElementById('page-home');
 const elPageTools = document.getElementById('page-tools');
@@ -116,7 +118,6 @@ const elBtnGenerateSummary = document.getElementById('btn-generate-summary');
 const elBtnCopySummary = document.getElementById('btn-copy-summary');
 const elBtnExportSummary = document.getElementById('btn-export-summary');
 const elSummaryTextView = document.getElementById('summary-text-view');
-const elSummaryGeneratingView = document.getElementById('summary-generating-view');
 
 // Chat DOM
 const elChatMessagesBox = document.getElementById('chat-messages-box');
@@ -301,18 +302,17 @@ function toggleTheme() {
 // Configure UI interaction listeners
 function setupEventListeners() {
   // --- Core Application Tab Switch Routing ---
-  elTabHome.addEventListener('click', () => switchAppTab('home'));
-  elTabToolsDirectory.addEventListener('click', () => switchAppTab('tools'));
-  elTabActivePdf.addEventListener('click', () => switchAppTab('viewer'));
-  elBtnClosePdfTab.addEventListener('click', (e) => {
-    e.stopPropagation();
-    closePdfDocument();
-  });
+  elTabHome.addEventListener('click', () => switchTab('home'));
+  elTabToolsDirectory.addEventListener('click', () => switchTab('tools'));
   
   // --- Home Dashboard Open Action ---
   const elBtnWelcomeOpen = document.getElementById('btn-welcome-open');
   if (elBtnWelcomeOpen) {
     elBtnWelcomeOpen.addEventListener('click', handleSelectPdf);
+  }
+  const elBtnAddTab = document.getElementById('btn-add-tab');
+  if (elBtnAddTab) {
+    elBtnAddTab.addEventListener('click', handleSelectPdf);
   }
   const elLinkSetupKeys = document.getElementById('link-setup-keys');
   if (elLinkSetupKeys) {
@@ -560,32 +560,286 @@ function setupEventListeners() {
       elSettingCustomModel.classList.add('hidden');
     }
   });
+
+  // Collapsible summary panels
+  const optToggle = document.getElementById('summary-options-toggle');
+  if (optToggle) {
+    optToggle.addEventListener('click', () => {
+      document.getElementById('summary-options-panel').classList.toggle('collapsed');
+    });
+  }
+  
+  const outToggle = document.getElementById('summary-output-toggle');
+  if (outToggle) {
+    outToggle.addEventListener('click', () => {
+      document.getElementById('summary-output-panel').classList.toggle('collapsed');
+    });
+  }
+
+  // Left sidebar collapse buttons
+  document.querySelectorAll('.btn-sidebar-collapse').forEach(btn => {
+    btn.addEventListener('click', () => {
+      elLeftSidebar.classList.add('collapsed');
+      elBtnSidebarThumbs.classList.remove('active');
+      elBtnSidebarBookmarks.classList.remove('active');
+      elBtnSidebarSearch.classList.remove('active');
+    });
+  });
 }
 
-// Router tabs for overall pages (Home / Tools / Viewer)
-function switchAppTab(tabName) {
-  // Set tab active state
+// Router tabs for overall pages (Home / Tools / Dynamic Documents)
+function renderTabs() {
+  if (!elTabsDynamicContainer) return;
+  elTabsDynamicContainer.innerHTML = '';
+  
+  tabs.forEach(tab => {
+    const tabBtn = document.createElement('button');
+    tabBtn.className = 'app-tab';
+    tabBtn.id = `tab-btn-${tab.id}`;
+    if (tab.id === activeTabId) {
+      tabBtn.classList.add('active');
+    }
+    
+    tabBtn.innerHTML = `
+      <svg class="tab-icon text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="tab-title-text" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tab.fileName}</span>
+      <span class="tab-close-btn" title="Close document">&times;</span>
+    `;
+    
+    tabBtn.addEventListener('click', () => {
+      switchTab(tab.id);
+    });
+    
+    const closeBtn = tabBtn.querySelector('.tab-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeTab(tab.id);
+      });
+    }
+    
+    elTabsDynamicContainer.appendChild(tabBtn);
+  });
+}
+
+function getDefaultChatHTML() {
+  return `
+    <div class="system-message">
+      <div class="chat-avatar">AI</div>
+      <p><strong>Chat initialized.</strong> Ask questions regarding the loaded PDF document.</p>
+    </div>
+  `;
+}
+
+function getDefaultSummaryHTML() {
+  return `<div class="empty-state"><p>Summary will appear here. Select configurations and click "Generate Summary".</p></div>`;
+}
+
+function getGeneratingSpinnerHTML(text = "Generating summary...") {
+  return `
+    <div class="generating-state">
+      <div class="glow-spinner"></div>
+      <p>${text}</p>
+      <span class="subtext">Sending chunks to LLM Provider</span>
+    </div>
+  `;
+}
+
+function updateTabContainersVisibility(tabId) {
+  document.querySelectorAll('.tab-chat-container').forEach(el => {
+    if (el.id === `chat-tab-${tabId}`) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+  document.querySelectorAll('.tab-summary-container').forEach(el => {
+    if (el.id === `summary-tab-${tabId}`) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+  document.querySelectorAll('.tab-thumbs-container').forEach(el => {
+    if (el.id === `thumbs-tab-${tabId}`) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+  document.querySelectorAll('.tab-bookmarks-container').forEach(el => {
+    if (el.id === `bookmarks-tab-${tabId}`) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+  document.querySelectorAll('.tab-search-container').forEach(el => {
+    if (el.id === `search-tab-${tabId}`) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+}
+
+function switchTab(tabId) {
+  // 1. Save state of previous active tab
+  if (activeTabId && activeTabId.startsWith('tab-doc-')) {
+    const prevTab = tabs.find(t => t.id === activeTabId);
+    if (prevTab) {
+      prevTab.currentNumPage = currentNumPage;
+      prevTab.pdfScale = pdfScale;
+      prevTab.searchTerm = elSidebarSearchTerm.value;
+      prevTab.chatHistory = [...chatHistory];
+      const activeSummaryC = document.getElementById(`summary-tab-${activeTabId}`);
+      prevTab.summaryText = activeSummaryC ? (activeSummaryC.dataset.rawContent || "") : "";
+    }
+  }
+  
+  // 2. Set new active tab ID
+  activeTabId = tabId;
+  
+  // 3. Clear active styling from all tabs
   elTabHome.classList.remove('active');
   elTabToolsDirectory.classList.remove('active');
-  elTabActivePdf.classList.remove('active');
+  document.querySelectorAll('.app-tab').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  const elScannedWarning = document.getElementById('scanned-pdf-warning');
+  if (elScannedWarning) elScannedWarning.classList.add('hidden');
+
+  if (tabId === 'home') {
+    elTabHome.classList.add('active');
+    elPageHome.classList.add('active-page');
+    elPageTools.classList.remove('active-page');
+    elPageViewer.classList.remove('active-page');
+    elGlobalToolbar.classList.add('hidden');
+    elHeaderFileName.textContent = "InsightPDF - AI-Powered Assistant";
+    setViewerControlsEnabled(false);
+    updateTabContainersVisibility(null);
+    renderRecentFilesList();
+    return;
+  }
+  
+  if (tabId === 'tools') {
+    elTabToolsDirectory.classList.add('active');
+    elPageHome.classList.remove('active-page');
+    elPageTools.classList.add('active-page');
+    elPageViewer.classList.remove('active-page');
+    elGlobalToolbar.classList.add('hidden');
+    elHeaderFileName.textContent = "Tools Directory";
+    setViewerControlsEnabled(false);
+    updateTabContainersVisibility(null);
+    return;
+  }
+  
+  // If it's a document tab
+  const activeTab = tabs.find(t => t.id === tabId);
+  if (!activeTab) return;
+  
+  // Set tab active styling in DOM
+  const tabBtn = document.getElementById(`tab-btn-${tabId}`);
+  if (tabBtn) {
+    tabBtn.classList.add('active');
+  }
   
   elPageHome.classList.remove('active-page');
   elPageTools.classList.remove('active-page');
-  elPageViewer.classList.remove('active-page');
+  elPageViewer.classList.add('active-page');
+  elGlobalToolbar.classList.remove('hidden');
+  elHeaderFileName.textContent = activeTab.fileName;
   
-  if (tabName === 'home') {
-    elTabHome.classList.add('active');
-    elPageHome.classList.add('active-page');
-    elGlobalToolbar.classList.add('hidden');
-    renderRecentFilesList();
-  } else if (tabName === 'tools') {
-    elTabToolsDirectory.classList.add('active');
-    elPageTools.classList.add('active-page');
-    elGlobalToolbar.classList.add('hidden');
-  } else if (tabName === 'viewer') {
-    elTabActivePdf.classList.add('active');
-    elPageViewer.classList.add('active-page');
-    elGlobalToolbar.classList.remove('hidden');
+  // 4. Restore state variables
+  pdfDoc = activeTab.pdfDoc;
+  currentNumPage = activeTab.currentNumPage;
+  pdfScale = activeTab.pdfScale;
+  pdfTextContent = activeTab.pdfTextContent;
+  chatHistory = activeTab.chatHistory;
+  loadedFilePath = activeTab.filePath;
+  
+  // 5. Restore DOM states
+  elSidebarSearchTerm.value = activeTab.searchTerm || "";
+  elTbPageNumber.value = currentNumPage;
+  elTotalPages.textContent = pdfDoc ? pdfDoc.numPages : 0;
+  
+  // Update zoom selector display
+  elTbZoomSelect.value = pdfScale.toString();
+  
+  // Toggle container visibility
+  updateTabContainersVisibility(tabId);
+  
+  // Show warning if scanned
+  if (elScannedWarning && activeTab.isScanned) {
+    elScannedWarning.classList.remove('hidden');
+  }
+  
+  // Enable / Disable controls based on loaded state
+  setViewerControlsEnabled(activeTab.isLoaded);
+  
+  if (activeTab.isGeneratingSummary) {
+    elBtnGenerateSummary.disabled = true;
+    elBtnCopySummary.disabled = true;
+    elBtnExportSummary.disabled = true;
+    const menuCopySummary = document.getElementById('menu-copy-summary');
+    if (menuCopySummary) menuCopySummary.classList.add('disabled');
+  } else {
+    elBtnGenerateSummary.disabled = !activeTab.isLoaded;
+    elBtnCopySummary.disabled = !activeTab.summaryText;
+    elBtnExportSummary.disabled = !activeTab.summaryText;
+    const menuCopySummary = document.getElementById('menu-copy-summary');
+    if (menuCopySummary) {
+      if (activeTab.summaryText) menuCopySummary.classList.remove('disabled');
+      else menuCopySummary.classList.add('disabled');
+    }
+  }
+  
+  // Auto-collapse parameters if summary already exists or is generating
+  const optPanel = document.getElementById('summary-options-panel');
+  const outPanel = document.getElementById('summary-output-panel');
+  if (activeTab.summaryText || activeTab.isGeneratingSummary) {
+    if (optPanel) optPanel.classList.add('collapsed');
+    if (outPanel) outPanel.classList.remove('collapsed');
+  } else {
+    if (optPanel) optPanel.classList.remove('collapsed');
+    if (outPanel) outPanel.classList.add('collapsed');
+  }
+  
+  if (activeTab.isLoaded) {
+    elPdfLoadingIndicator.classList.add('hidden');
+    elPdfCanvas.classList.remove('hidden');
+    renderPage(currentNumPage);
+  } else {
+    elPdfLoadingIndicator.classList.remove('hidden');
+    elPdfCanvas.classList.add('hidden');
+  }
+}
+
+function closeTab(tabId) {
+  const index = tabs.findIndex(t => t.id === tabId);
+  if (index === -1) return;
+  
+  const tab = tabs[index];
+  if (tab.cancelStream) {
+    tab.cancelStream();
+  }
+  if (tab.cancelChatStream) {
+    tab.cancelChatStream();
+  }
+  
+  tabs.splice(index, 1);
+  
+  // Remove tab DOM containers
+  const chatC = document.getElementById(`chat-tab-${tabId}`);
+  if (chatC) chatC.remove();
+  const summaryC = document.getElementById(`summary-tab-${tabId}`);
+  if (summaryC) summaryC.remove();
+  const thumbsC = document.getElementById(`thumbs-tab-${tabId}`);
+  if (thumbsC) thumbsC.remove();
+  const bookmarksC = document.getElementById(`bookmarks-tab-${tabId}`);
+  if (bookmarksC) bookmarksC.remove();
+  const searchC = document.getElementById(`search-tab-${tabId}`);
+  if (searchC) searchC.remove();
+  
+  renderTabs();
+  
+  if (tabs.length === 0) {
+    closePdfDocument();
+  } else {
+    // If the closed tab was the active one, switch to another tab
+    if (activeTabId === tabId) {
+      const nextActiveId = tabs[tabs.length - 1].id;
+      switchTab(nextActiveId);
+    }
   }
 }
 
@@ -605,27 +859,11 @@ function closePdfDocument() {
   elHeaderFileName.textContent = "InsightPDF - AI-Powered Assistant";
   
   // Reset tabs and toolbars
-  elTabActivePdf.classList.add('hidden');
-  elActivePdfTitle.textContent = "Document.pdf";
+  elTotalPages.textContent = 0;
   
   // Disable buttons
-  elBtnPrevPage.disabled = true;
-  elBtnNextPage.disabled = true;
-  elBtnPrevPageOverlay.disabled = true;
-  elBtnNextPageOverlay.disabled = true;
-  elTbPageNumber.disabled = true;
+  setViewerControlsEnabled(false);
   elTbPageNumber.value = 1;
-  elTotalPages.textContent = 0;
-  elTbZoomSelect.disabled = true;
-  elBtnZoomIn.disabled = true;
-  elBtnZoomOut.disabled = true;
-  elBtnZoomFit.disabled = true;
-  
-  elBtnGenerateSummary.disabled = true;
-  elTabChat.disabled = true;
-  elBtnSaveSummaryTb.disabled = true;
-  elBtnPrintPdfTb.disabled = true;
-  elBtnShareSummaryTb.disabled = true;
   
   // Clear sidebars
   elThumbnailsListBox.innerHTML = '';
@@ -636,29 +874,93 @@ function closePdfDocument() {
   elSidebarSearchTerm.value = '';
   
   // Clear Summarizer results
-  elSummaryTextView.innerHTML = `<div class="empty-state"><p>Summary will appear here. Select configurations and click "Generate Summary".</p></div>`;
+  elSummaryTextView.innerHTML = getDefaultSummaryHTML();
   elSummaryTextView.removeAttribute('data-raw-content');
   elBtnCopySummary.disabled = true;
   elBtnExportSummary.disabled = true;
   
   // Clear chat logs
-  elChatMessagesBox.innerHTML = `
-    <div class="system-message">
-      <p><strong>Chat initialized.</strong> Ask questions regarding the loaded PDF document. The assistant has access to the full text context.</p>
-    </div>
-  `;
-  
-  document.getElementById('menu-save-summary').classList.add('disabled');
-  document.getElementById('menu-export-md').classList.add('disabled');
-  document.getElementById('menu-print-pdf').classList.add('disabled');
-  document.getElementById('menu-copy-summary').classList.add('disabled');
+  elChatMessagesBox.innerHTML = getDefaultChatHTML();
   
   const elScannedWarning = document.getElementById('scanned-pdf-warning');
   if (elScannedWarning) elScannedWarning.classList.add('hidden');
 
   // Navigate back to home tab
-  switchAppTab('home');
+  switchTab('home');
   updateStartupChecklist();
+}
+
+function setViewerControlsEnabled(enabled) {
+  elBtnPrevPage.disabled = !enabled;
+  elBtnNextPage.disabled = !enabled;
+  elBtnPrevPageOverlay.disabled = !enabled;
+  elBtnNextPageOverlay.disabled = !enabled;
+  elTbPageNumber.disabled = !enabled;
+  elTbZoomSelect.disabled = !enabled;
+  elBtnZoomIn.disabled = !enabled;
+  elBtnZoomOut.disabled = !enabled;
+  elBtnZoomFit.disabled = !enabled;
+  elBtnGenerateSummary.disabled = !enabled;
+  elTabChat.disabled = !enabled;
+  
+  elBtnSaveSummaryTb.disabled = !enabled;
+  elBtnPrintPdfTb.disabled = !enabled;
+  elBtnShareSummaryTb.disabled = !enabled;
+  
+  const menuSaveSummary = document.getElementById('menu-save-summary');
+  const menuExportMd = document.getElementById('menu-export-md');
+  const menuPrintPdf = document.getElementById('menu-print-pdf');
+  const menuCopySummary = document.getElementById('menu-copy-summary');
+  
+  if (enabled) {
+    if (menuSaveSummary) menuSaveSummary.classList.remove('disabled');
+    if (menuExportMd) menuExportMd.classList.remove('disabled');
+    if (menuPrintPdf) menuPrintPdf.classList.remove('disabled');
+    if (menuCopySummary) menuCopySummary.classList.remove('disabled');
+  } else {
+    if (menuSaveSummary) menuSaveSummary.classList.add('disabled');
+    if (menuExportMd) menuExportMd.classList.add('disabled');
+    if (menuPrintPdf) menuPrintPdf.classList.add('disabled');
+    if (menuCopySummary) menuCopySummary.classList.add('disabled');
+  }
+}
+
+async function extractTextContentForTab(tab) {
+  const loadedDoc = tab.pdfDoc;
+  if (!loadedDoc) return;
+  
+  const totalPages = loadedDoc.numPages;
+  const tempText = [];
+  let totalLength = 0;
+  
+  for (let i = 1; i <= totalPages; i++) {
+    try {
+      const page = await loadedDoc.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(item => item.str).join(' ').trim();
+      tempText.push(pageText);
+      totalLength += pageText.length;
+    } catch (e) {
+      console.error(`Error extracting text from page ${i}:`, e);
+      tempText.push("");
+    }
+  }
+  
+  tab.pdfTextContent = tempText;
+  tab.isScanned = (totalLength === 0);
+  
+  // If this tab is currently active, sync the global text content variable and warning
+  if (activeTabId === tab.id) {
+    pdfTextContent = tempText;
+    const elScannedWarning = document.getElementById('scanned-pdf-warning');
+    if (elScannedWarning) {
+      if (tab.isScanned) {
+        elScannedWarning.classList.remove('hidden');
+      } else {
+        elScannedWarning.classList.add('hidden');
+      }
+    }
+  }
 }
 
 // Collapsible Left Sidebar Panel togglers
@@ -751,22 +1053,83 @@ async function handleSelectPdf() {
 }
 
 // Load PDF and extract its text
+// Load PDF and extract its text
 async function loadPdf(filePath) {
-  loadedFilePath = filePath;
+  if (!filePath) return;
+  
+  // Check if this file is already open
+  const existingTab = tabs.find(t => t.filePath === filePath);
+  if (existingTab) {
+    switchTab(existingTab.id);
+    return;
+  }
+  
+  // Create a new tab
+  const tabId = 'tab-doc-' + Date.now();
+  const baseName = filePath.replace(/\\/g, '/');
+  const fileName = baseName.substring(baseName.lastIndexOf('/') + 1);
+  
+  const newTab = {
+    id: tabId,
+    fileName: fileName,
+    filePath: filePath,
+    pdfDoc: null,
+    currentNumPage: 1,
+    pdfScale: 1.2,
+    pdfTextContent: [],
+    chatHistory: [],
+    summaryText: "",
+    outline: null,
+    searchResults: [],
+    searchTerm: "",
+    isLoaded: false
+  };
+  
+  tabs.push(newTab);
+  
+  // If this is the first tab, clear hardcoded HTML placeholders
+  if (tabs.length === 1) {
+    elSummaryTextView.innerHTML = '';
+    elChatMessagesBox.innerHTML = '';
+    elSearchResultsListBox.innerHTML = '';
+  }
+  
+  // Create tab DOM containers
+  const chatC = document.createElement('div');
+  chatC.id = `chat-tab-${tabId}`;
+  chatC.className = 'tab-chat-container hidden';
+  chatC.innerHTML = getDefaultChatHTML();
+  elChatMessagesBox.appendChild(chatC);
+  
+  const summaryC = document.createElement('div');
+  summaryC.id = `summary-tab-${tabId}`;
+  summaryC.className = 'tab-summary-container hidden';
+  summaryC.innerHTML = getDefaultSummaryHTML();
+  elSummaryTextView.appendChild(summaryC);
+  
+  const thumbsC = document.createElement('div');
+  thumbsC.id = `thumbs-tab-${tabId}`;
+  thumbsC.className = 'tab-thumbs-container hidden';
+  elThumbnailsListBox.appendChild(thumbsC);
+  
+  const bookmarksC = document.createElement('div');
+  bookmarksC.id = `bookmarks-tab-${tabId}`;
+  bookmarksC.className = 'tab-bookmarks-container hidden';
+  bookmarksC.innerHTML = '<div class="sidebar-empty-state">No outline bookmarks found.</div>';
+  elBookmarksListBox.appendChild(bookmarksC);
+  
+  const searchC = document.createElement('div');
+  searchC.id = `search-tab-${tabId}`;
+  searchC.className = 'tab-search-container hidden';
+  searchC.innerHTML = '<div class="sidebar-empty-state">Type a search term to find occurrences.</div>';
+  elSearchResultsListBox.appendChild(searchC);
+  
+  renderTabs();
+  switchTab(tabId);
+  
   elWelcomeView.classList.add('hidden');
   elPdfCanvas.classList.add('hidden');
   elPdfLoadingIndicator.classList.remove('hidden');
-  
-  // Set UI name
-  const fileName = filePath.substring(filePath.lastIndexOf('\\') + 1);
-  elHeaderFileName.textContent = fileName;
-  
-  // Configure active document tab
-  elTabActivePdf.classList.remove('hidden');
-  elActivePdfTitle.textContent = fileName;
-  
-  // Switch to page viewer layout immediately
-  switchAppTab('viewer');
   
   try {
     // Read the PDF using native FS
@@ -779,64 +1142,46 @@ async function loadPdf(filePath) {
     
     // Load document in PDF.js
     const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
-    pdfDoc = await loadingTask.promise;
+    const loadedDoc = await loadingTask.promise;
     
-    currentNumPage = 1;
-    elTotalPages.textContent = pdfDoc.numPages;
-    elTbPageNumber.value = currentNumPage;
+    newTab.pdfDoc = loadedDoc;
+    newTab.isLoaded = true;
     
-    // Reset Zoom
-    pdfScale = 1.2;
-    elTbZoomSelect.value = "1.2";
+    // Extract PDF text content asynchronously
+    extractTextContentForTab(newTab);
     
-    // Enable controls
-    elBtnPrevPage.disabled = false;
-    elBtnNextPage.disabled = false;
-    elBtnPrevPageOverlay.disabled = false;
-    elBtnNextPageOverlay.disabled = false;
-    elTbPageNumber.disabled = false;
-    elTbZoomSelect.disabled = false;
-    elBtnZoomIn.disabled = false;
-    elBtnZoomOut.disabled = false;
-    elBtnZoomFit.disabled = false;
-    elBtnGenerateSummary.disabled = false;
-    elTabChat.disabled = false;
-    
-    elBtnSaveSummaryTb.disabled = false;
-    elBtnPrintPdfTb.disabled = false;
-    elBtnShareSummaryTb.disabled = false;
-    
-    document.getElementById('menu-save-summary').classList.remove('disabled');
-    document.getElementById('menu-export-md').classList.remove('disabled');
-    document.getElementById('menu-print-pdf').classList.remove('disabled');
-    
-    // Clear old text context
-    pdfTextContent = [];
-    
-    // Extract PDF text content
-    await extractPdfText();
-    
-    // Render outline bookmarks
-    renderBookmarksOutline();
-    
-    // Render page thumbnails lazy lists
-    renderPageThumbnails();
-    
-    // Render first page
-    await renderPage(currentNumPage);
+    // If this tab is still the active tab, initialize rendering!
+    if (activeTabId === tabId) {
+      pdfDoc = loadedDoc;
+      currentNumPage = 1;
+      pdfScale = 1.2;
+      elTotalPages.textContent = pdfDoc.numPages;
+      elTbPageNumber.value = 1;
+      
+      // Enable controls
+      setViewerControlsEnabled(true);
+      
+      elPdfLoadingIndicator.classList.add('hidden');
+      elPdfCanvas.classList.remove('hidden');
+      
+      // Render page and sidebar assets
+      await renderPage(1);
+      await renderBookmarksOutline();
+      await renderPageThumbnails();
+    }
     
     // Save to recents cache
     addRecentFile(filePath);
     updateStartupChecklist();
     
-    // Close loading indicator
-    elPdfLoadingIndicator.classList.add('hidden');
-    elPdfCanvas.classList.remove('hidden');
   } catch (err) {
-    console.error("PDF loading error:", err);
-    elPdfLoadingIndicator.classList.add('hidden');
-    closePdfDocument();
-    alert("Could not load PDF: " + err.message);
+    console.error("PDF loading error for tab:", tabId, err);
+    // If active tab failed, show alert
+    if (activeTabId === tabId) {
+      elPdfLoadingIndicator.classList.add('hidden');
+      alert("Could not load PDF: " + err.message);
+    }
+    closeTab(tabId);
   }
 }
 
@@ -880,7 +1225,7 @@ function goToPage(pageNum) {
     renderPage(pageNum);
     
     // Auto-scroll the thumbnails sidebar viewport to display the active thumbnail
-    const targetThumb = document.getElementById(`thumb-page-${pageNum}`);
+    const targetThumb = document.getElementById(`thumb-page-${activeTabId}-${pageNum}`);
     if (targetThumb) {
       targetThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -918,42 +1263,13 @@ function changePage(direction) {
   }
 }
 
-// Extract PDF text content page-by-page
-async function extractPdfText() {
-  if (!pdfDoc) return;
-  
-  pdfTextContent = new Array(pdfDoc.numPages).fill('');
-  let totalLength = 0;
-  
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
-    try {
-      const page = await pdfDoc.getPage(i);
-      const text = await page.getTextContent();
-      const pageText = text.items.map(item => item.str).join(' ').trim();
-      pdfTextContent[i - 1] = pageText;
-      totalLength += pageText.length;
-    } catch (e) {
-      console.error(`Error extracting text on page ${i}:`, e);
-      pdfTextContent[i - 1] = `[Extraction error on page ${i}]`;
-    }
-  }
-  console.log("PDF text extraction completed successfully. Pages total:", pdfTextContent.length, "Total length:", totalLength);
 
-  const elScannedWarning = document.getElementById('scanned-pdf-warning');
-  if (elScannedWarning) {
-    if (totalLength === 0) {
-      elScannedWarning.classList.remove('hidden');
-    } else {
-      elScannedWarning.classList.add('hidden');
-    }
-  }
-}
 
 // Render a PDF page to canvas and export as base64 string
-async function getPageImageBase64(pageNum, targetWidth = 1024) {
-  if (!pdfDoc) return null;
+async function getPageImageBase64ForDoc(doc, pageNum, targetWidth = 1024) {
+  if (!doc) return null;
   try {
-    const page = await pdfDoc.getPage(pageNum);
+    const page = await doc.getPage(pageNum);
     
     // Get viewport at a scale to match targetWidth for optimal text legibility
     const originalViewport = page.getViewport({ scale: 1.0 });
@@ -984,39 +1300,52 @@ async function getPageImageBase64(pageNum, targetWidth = 1024) {
   }
 }
 
+async function getPageImageBase64(pageNum, targetWidth = 1024) {
+  return getPageImageBase64ForDoc(pdfDoc, pageNum, targetWidth);
+}
+
 // Compile target text based on selected pages option
-function getTargetTextForSummary() {
-  const mode = elSummaryPages.value;
+function getTargetTextForSummaryForTab(tab, pagesMode, customPagesStr) {
+  const mode = pagesMode;
+  const doc = tab.pdfDoc;
+  const textContent = tab.pdfTextContent;
+  const currentPage = tab.currentNumPage;
   
   if (mode === 'current') {
-    return `Page ${currentNumPage}:\n${pdfTextContent[currentNumPage - 1]}`;
+    return `Page ${currentPage}:\n${textContent[currentPage - 1]}`;
   }
   
   if (mode === 'custom') {
-    const rangeStr = elCustomPagesInput.value.trim();
+    const rangeStr = customPagesStr;
     if (!rangeStr) {
       alert("Please enter a page range (e.g. 1-3). Using current page.");
-      return `Page ${currentNumPage}:\n${pdfTextContent[currentNumPage - 1]}`;
+      return `Page ${currentPage}:\n${textContent[currentPage - 1]}`;
     }
     
-    // Parse range (handles ranges like '1-3, 5' or single numbers)
+    // Parse range
     const pages = parsePageRange(rangeStr);
     let extracted = [];
     for (const p of pages) {
-      if (p >= 1 && p <= pdfDoc.numPages) {
-        extracted.push(`Page ${p}:\n${pdfTextContent[p - 1]}`);
+      if (p >= 1 && p <= doc.numPages) {
+        extracted.push(`Page ${p}:\n${textContent[p - 1]}`);
       }
     }
     
     if (extracted.length === 0) {
       alert("Invalid page range specified. Using all pages.");
-      return pdfTextContent.map((text, idx) => `Page ${idx + 1}:\n${text}`).join('\n\n');
+      return textContent.map((text, idx) => `Page ${idx + 1}:\n${text}`).join('\n\n');
     }
     return extracted.join('\n\n');
   }
   
   // Default to all pages
-  return pdfTextContent.map((text, idx) => `Page ${idx + 1}:\n${text}`).join('\n\n');
+  return textContent.map((text, idx) => `Page ${idx + 1}:\n${text}`).join('\n\n');
+}
+
+function getTargetTextForSummary() {
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  if (!activeTab) return "";
+  return getTargetTextForSummaryForTab(activeTab, elSummaryPages.value, elCustomPagesInput.value.trim());
 }
 
 // Parse comma separated and hyphen ranges (e.g., "1-3, 5")
@@ -1090,25 +1419,43 @@ async function generateSummary() {
     return;
   }
 
+  // Capture the current target tab context upfront
+  const targetTabId = activeTabId;
+  const targetTab = tabs.find(t => t.id === targetTabId);
+  if (!targetTab) return;
+
   const length = elSummaryLength.value;
   const style = elSummaryStyle.value;
   const customInstructions = elCustomInstructions.value.trim();
+  const summaryPagesMode = elSummaryPages.value;
+  const customPagesStr = elCustomPagesInput.value.trim();
   
-  const totalTextLength = pdfTextContent.reduce((sum, txt) => sum + (txt ? txt.trim().length : 0), 0);
-  const isScanned = (totalTextLength === 0);
+  const docToSummarize = targetTab.pdfDoc;
+  const textContentList = targetTab.pdfTextContent;
+  const scannedStatus = targetTab.isScanned;
+  const currentPage = targetTab.currentNumPage;
 
-  // Prep UI loaders
-  elSummaryTextView.classList.add('hidden');
-  elSummaryGeneratingView.classList.remove('hidden');
-  elBtnGenerateSummary.disabled = true;
-  elBtnCopySummary.disabled = true;
-  elBtnExportSummary.disabled = true;
+  // Set the tab as generating
+  targetTab.isGeneratingSummary = true;
 
-  const spinnerLabel = elSummaryGeneratingView.querySelector('p');
-  if (isScanned) {
-    spinnerLabel.textContent = "AI Vision reading scanned page images...";
-  } else {
-    spinnerLabel.textContent = "Generating summary...";
+  // Collapse parameters panel and expand output panel for better viewing
+  const optPanel = document.getElementById('summary-options-panel');
+  if (optPanel) optPanel.classList.add('collapsed');
+  
+  const outPanel = document.getElementById('summary-output-panel');
+  if (outPanel) outPanel.classList.remove('collapsed');
+
+  // Update UI if target tab is currently in focus
+  if (activeTabId === targetTabId) {
+    elBtnGenerateSummary.disabled = true;
+    elBtnCopySummary.disabled = true;
+    elBtnExportSummary.disabled = true;
+  }
+
+  const summaryContainer = document.getElementById(`summary-tab-${targetTabId}`);
+  if (summaryContainer) {
+    summaryContainer.innerHTML = getGeneratingSpinnerHTML(scannedStatus ? "AI Vision reading scanned page images..." : "Generating summary...");
+    summaryContainer.removeAttribute('data-raw-content');
   }
 
   // Get active model
@@ -1118,25 +1465,24 @@ async function generateSummary() {
   }
 
   try {
-    let summaryText = "";
-    if (isScanned) {
+    let prompt = "";
+    let images = [];
+    if (scannedStatus) {
       // Determine which page numbers to render
       let pagesToRender = [];
-      const mode = elSummaryPages.value;
-      if (mode === 'current') {
-        pagesToRender = [currentNumPage];
-      } else if (mode === 'all') {
+      if (summaryPagesMode === 'current') {
+        pagesToRender = [currentPage];
+      } else if (summaryPagesMode === 'all') {
         // Limit to first 4 pages for scanned summary to avoid request timeouts
-        const limit = Math.min(pdfDoc.numPages, 4);
+        const limit = Math.min(docToSummarize.numPages, 4);
         for (let i = 1; i <= limit; i++) pagesToRender.push(i);
-      } else if (mode === 'custom') {
-        const rangeStr = elCustomPagesInput.value.trim();
-        const pages = parsePageRange(rangeStr || "1");
-        pagesToRender = pages.filter(p => p >= 1 && p <= pdfDoc.numPages).slice(0, 4);
+      } else if (summaryPagesMode === 'custom') {
+        const pages = parsePageRange(customPagesStr || "1");
+        pagesToRender = pages.filter(p => p >= 1 && p <= docToSummarize.numPages).slice(0, 4);
       }
 
       if (pagesToRender.length === 0) {
-        pagesToRender = [currentNumPage];
+        pagesToRender = [currentPage];
       }
 
       if (activeProvider === 'nvidia') {
@@ -1147,10 +1493,14 @@ async function generateSummary() {
       }
 
       // Convert pages to base64 images
-      const images = [];
       for (const p of pagesToRender) {
-        spinnerLabel.textContent = `AI Vision rendering page ${p} of ${pagesToRender.length}...`;
-        const base64 = await getPageImageBase64(p);
+        if (summaryContainer) {
+          const spinnerLabel = summaryContainer.querySelector('p');
+          if (spinnerLabel) {
+            spinnerLabel.textContent = `AI Vision rendering page ${p} of ${pagesToRender.length}...`;
+          }
+        }
+        const base64 = await getPageImageBase64ForDoc(docToSummarize, p);
         if (base64) images.push(base64);
       }
 
@@ -1158,8 +1508,14 @@ async function generateSummary() {
         throw new Error("Failed to render PDF pages for visual OCR.");
       }
 
-      spinnerLabel.textContent = "AI Vision reading text and generating summary...";
-      const prompt = `You are an expert AI multimodal assistant. The attached images are visual renders of pages ${pagesToRender.join(', ')} from a scanned PDF document. 
+      if (summaryContainer) {
+        const spinnerLabel = summaryContainer.querySelector('p');
+        if (spinnerLabel) {
+          spinnerLabel.textContent = "AI Vision reading text and generating summary...";
+        }
+      }
+
+      prompt = `You are an expert AI multimodal assistant. The attached images are visual renders of pages ${pagesToRender.join(', ')} from a scanned PDF document. 
 Please review these page images carefully, extract any visible text, and create a high-quality summary.
 
 SUMMARY CONFIGURATION:
@@ -1169,26 +1525,22 @@ ${customInstructions ? `- Custom instructions: ${customInstructions}` : ''}
 
 Provide ONLY the summary formatted in Markdown, with clear headers and bullet points.`;
 
-      summaryText = await window.api.makeApiRequest({
-        provider: activeProvider,
-        apiKey: apiKey,
-        model: modelName,
-        prompt: prompt,
-        images: images
-      });
-
     } else {
       // Standard Text-based Summary
-      const textContent = getTargetTextForSummary();
+      const textContent = getTargetTextForSummaryForTab(targetTab, summaryPagesMode, customPagesStr);
       if (!textContent.trim()) {
         alert("No extractable text was found on the selected pages.");
-        elSummaryGeneratingView.classList.add('hidden');
-        elSummaryTextView.classList.remove('hidden');
-        elBtnGenerateSummary.disabled = false;
+        if (summaryContainer) {
+          summaryContainer.innerHTML = getDefaultSummaryHTML();
+        }
+        targetTab.isGeneratingSummary = false;
+        if (activeTabId === targetTabId) {
+          elBtnGenerateSummary.disabled = false;
+        }
         return;
       }
 
-      const prompt = `You are an expert AI summarizer. Please review the following text extracted from a PDF document and create a high-quality summary.
+      prompt = `You are an expert AI summarizer. Please review the following text extracted from a PDF document and create a high-quality summary.
   
 PARAMETERS:
 - Summary Length: ${length}
@@ -1201,39 +1553,102 @@ ${textContent}
 ---
 
 Your response should contain ONLY the summary formatted in Markdown, with clear headers and bullet points where applicable.`;
+    }
 
-      summaryText = await window.api.makeApiRequest({
+    let streamedText = "";
+    let reasoningText = "";
+
+    const cancelStream = window.api.makeStreamingApiRequest(
+      {
         provider: activeProvider,
         apiKey: apiKey,
         model: modelName,
-        prompt: prompt
-      });
-    }
+        prompt: prompt,
+        images: images,
+        ollamaUrl: config.ollamaUrl
+      },
+      (data) => {
+        if (data.isReasoning) {
+          reasoningText += data.chunk;
+        } else {
+          streamedText += data.chunk;
+        }
+        
+        if (summaryContainer) {
+          let html = parseMarkdown(streamedText);
+          if (reasoningText.trim()) {
+            html = `<details class="thinking-block" open>
+              <summary>Thinking Process</summary>
+              <div class="thinking-content">${reasoningText.trim().replace(/\n/g, '<br>')}</div>
+            </details>` + html;
+          }
+          summaryContainer.innerHTML = html;
+        }
+      },
+      () => {
+        // onDone
+        targetTab.summaryText = (reasoningText.trim() ? `<thinking>\n${reasoningText.trim()}\n</thinking>\n` : '') + streamedText;
+        
+        if (summaryContainer) {
+          let html = parseMarkdown(streamedText);
+          if (reasoningText.trim()) {
+            html = `<details class="thinking-block" open>
+              <summary>Thinking Process</summary>
+              <div class="thinking-content">${reasoningText.trim().replace(/\n/g, '<br>')}</div>
+            </details>` + html;
+          }
+          summaryContainer.innerHTML = html;
+          summaryContainer.dataset.rawContent = targetTab.summaryText;
+        }
 
-    // Save to text view
-    elSummaryTextView.innerHTML = parseMarkdown(summaryText);
-    elSummaryTextView.dataset.rawContent = summaryText; // cache raw text for export
-    
-    elBtnCopySummary.disabled = false;
-    elBtnExportSummary.disabled = false;
-    document.getElementById('menu-copy-summary').classList.remove('disabled');
+        if (activeTabId === targetTabId) {
+          elBtnCopySummary.disabled = false;
+          elBtnExportSummary.disabled = false;
+          const menuCopySummary = document.getElementById('menu-copy-summary');
+          if (menuCopySummary) menuCopySummary.classList.remove('disabled');
+        }
+
+        targetTab.isGeneratingSummary = false;
+        targetTab.cancelStream = null;
+        if (activeTabId === targetTabId) {
+          elBtnGenerateSummary.disabled = false;
+        }
+      },
+      (err) => {
+        // onError
+        if (summaryContainer) {
+          summaryContainer.innerHTML = `<div class="empty-state" style="color: var(--danger)">
+            <p><strong>Failed to generate summary:</strong> ${err.message}</p>
+          </div>`;
+        }
+        targetTab.isGeneratingSummary = false;
+        targetTab.cancelStream = null;
+        if (activeTabId === targetTabId) {
+          elBtnGenerateSummary.disabled = false;
+        }
+      }
+    );
+
+    targetTab.cancelStream = cancelStream;
 
   } catch (err) {
-    elSummaryTextView.innerHTML = `<div class="empty-state" style="color: var(--danger)">
-      <p><strong>Failed to generate summary:</strong> ${err.message}</p>
-    </div>`;
+    if (summaryContainer) {
+      summaryContainer.innerHTML = `<div class="empty-state" style="color: var(--danger)">
+        <p><strong>Failed to generate summary:</strong> ${err.message}</p>
+      </div>`;
+    }
     console.error("Summary error:", err);
-  } finally {
-    spinnerLabel.textContent = "Generating summary..."; // restore original spinner text
-    elSummaryGeneratingView.classList.add('hidden');
-    elSummaryTextView.classList.remove('hidden');
-    elBtnGenerateSummary.disabled = false;
+    targetTab.isGeneratingSummary = false;
+    if (activeTabId === targetTabId) {
+      elBtnGenerateSummary.disabled = false;
+    }
   }
 }
 
 // Copy summary text
 function copySummaryToClipboard() {
-  const rawText = elSummaryTextView.dataset.rawContent;
+  const activeSummaryC = document.getElementById(`summary-tab-${activeTabId}`);
+  const rawText = activeSummaryC ? activeSummaryC.dataset.rawContent : null;
   if (rawText) {
     navigator.clipboard.writeText(rawText);
     alert("Summary copied to clipboard!");
@@ -1242,7 +1657,8 @@ function copySummaryToClipboard() {
 
 // Save summary locally as .md
 async function exportSummaryToFile() {
-  const rawText = elSummaryTextView.dataset.rawContent;
+  const activeSummaryC = document.getElementById(`summary-tab-${activeTabId}`);
+  const rawText = activeSummaryC ? activeSummaryC.dataset.rawContent : null;
   if (!rawText) return;
   
   try {
@@ -1276,6 +1692,11 @@ async function sendChatMessage() {
     elSettingsOverlay.classList.remove('hidden');
     return;
   }
+
+  // Capture current tab ID context
+  const targetTabId = activeTabId;
+  const targetTab = tabs.find(t => t.id === targetTabId);
+  if (!targetTab) return;
   
   // Append user message
   appendChatMessage('user', query);
@@ -1293,33 +1714,28 @@ async function sendChatMessage() {
   const isScanned = (totalTextLength === 0);
 
   try {
-    let replyText = "";
+    let prompt = "";
+    let images = [];
+    
     if (isScanned) {
       // Multimodal chat: render current active page image as base64
       const base64 = await getPageImageBase64(currentNumPage);
       if (!base64) {
         throw new Error("Failed to render the current page image for visual chat.");
       }
+      images = [base64];
 
-      const prompt = `You are a helpful AI assistant analyzing a PDF document. The attached image is Page ${currentNumPage} of the scanned document. 
+      prompt = `You are a helpful AI assistant analyzing a PDF document. The attached image is Page ${currentNumPage} of the scanned document. 
 Please review the image, read the text visually, and answer the user's question.
 
 User's Question: ${query}`;
-
-      replyText = await window.api.makeApiRequest({
-        provider: activeProvider,
-        apiKey: apiKey,
-        model: modelName,
-        prompt: prompt,
-        images: [base64]
-      });
 
     } else {
       // Standard Text-based Chat
       const textContext = pdfTextContent.slice(0, 30).join('\n\n');
       let chatHistoryContext = chatHistory.slice(-4).map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n');
       
-      const prompt = `You are a helpful AI assistant analyzing a PDF document. Answer the user's question based on the provided PDF context. 
+      prompt = `You are a helpful AI assistant analyzing a PDF document. Answer the user's question based on the provided PDF context. 
 If you cannot find the answer in the text context, inform the user but try your best to answer based on general knowledge where appropriate.
 
 PDF TEXT CONTEXT:
@@ -1336,23 +1752,66 @@ USER'S QUESTION:
 ${query}
 
 Answer formatted in markdown:`;
+    }
 
-      replyText = await window.api.makeApiRequest({
+    // Remove typing indicator and prepare dynamic response bubble
+    typingEl.remove();
+    const replyEl = appendChatMessage('assistant', '');
+
+    let streamedReply = "";
+    let reasoningText = "";
+
+    const cancelChatStream = window.api.makeStreamingApiRequest(
+      {
         provider: activeProvider,
         apiKey: apiKey,
         model: modelName,
-        prompt: prompt
-      });
-    }
+        prompt: prompt,
+        images: images,
+        ollamaUrl: config.ollamaUrl
+      },
+      (data) => {
+        if (data.isReasoning) {
+          reasoningText += data.chunk;
+        } else {
+          streamedReply += data.chunk;
+        }
+        
+        let html = parseMarkdown(streamedReply);
+        if (reasoningText.trim()) {
+          html = `<details class="thinking-block" open>
+            <summary>Thinking Process</summary>
+            <div class="thinking-content">${reasoningText.trim().replace(/\n/g, '<br>')}</div>
+          </details>` + html;
+        }
+        replyEl.innerHTML = html;
+        
+        const container = document.getElementById(`chat-tab-${targetTabId}`);
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+        }
+      },
+      () => {
+        // onDone
+        const fullContent = (reasoningText.trim() ? `<thinking>\n${reasoningText.trim()}\n</thinking>\n` : '') + streamedReply;
+        targetTab.chatHistory.push({ role: 'user', content: query });
+        targetTab.chatHistory.push({ role: 'assistant', content: fullContent });
+        
+        // Sync global history if this tab remains in focus
+        if (activeTabId === targetTabId) {
+          chatHistory = targetTab.chatHistory;
+        }
+        targetTab.cancelChatStream = null;
+      },
+      (err) => {
+        // onError
+        replyEl.innerHTML = `<span style="color: var(--danger)">Error executing Q&A request: ${err.message}</span>`;
+        targetTab.cancelChatStream = null;
+      }
+    );
 
-    // Remove typing indicator and show message
-    typingEl.remove();
-    appendChatMessage('assistant', replyText);
-    
-    // Save to history
-    chatHistory.push({ role: 'user', content: query });
-    chatHistory.push({ role: 'assistant', content: replyText });
-    
+    targetTab.cancelChatStream = cancelChatStream;
+
   } catch (err) {
     typingEl.remove();
     appendChatMessage('assistant', `Error executing Q&A request: ${err.message}`);
@@ -1378,30 +1837,34 @@ function appendChatMessage(sender, text, isLoading = false) {
     msgDiv.innerHTML = parseMarkdown(text);
   }
   
-  elChatMessagesBox.appendChild(msgDiv);
-  elChatMessagesBox.scrollTop = elChatMessagesBox.scrollHeight;
+  const container = document.getElementById(`chat-tab-${activeTabId}`);
+  if (container) {
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+  }
   return msgDiv;
 }
 
 // Clear Chat Panel state
 function clearChatHistory() {
   chatHistory = [];
-  elChatMessagesBox.innerHTML = `
-    <div class="system-message">
-      <p><strong>Chat cleared.</strong> Ask questions regarding the loaded PDF document.</p>
-    </div>
-  `;
+  const container = document.getElementById(`chat-tab-${activeTabId}`);
+  if (container) {
+    container.innerHTML = getDefaultChatHTML();
+  }
 }
 
 // --- PDF outline & Bookmark navigation ---
 async function renderBookmarksOutline() {
-  elBookmarksListBox.innerHTML = '';
+  const container = document.getElementById(`bookmarks-tab-${activeTabId}`);
+  if (!container) return;
+  container.innerHTML = '';
   if (!pdfDoc) return;
   
   try {
     const outline = await pdfDoc.getOutline();
     if (!outline || outline.length === 0) {
-      elBookmarksListBox.innerHTML = '<div class="sidebar-empty-state">No outline bookmarks found in PDF.</div>';
+      container.innerHTML = '<div class="sidebar-empty-state">No outline bookmarks found in PDF.</div>';
       return;
     }
     
@@ -1411,10 +1874,10 @@ async function renderBookmarksOutline() {
     
     // Recursively append outline nodes
     appendBookmarkNodes(treeRoot, outline);
-    elBookmarksListBox.appendChild(treeRoot);
+    container.appendChild(treeRoot);
   } catch (err) {
     console.error("Outline parsing failed:", err);
-    elBookmarksListBox.innerHTML = '<div class="sidebar-empty-state">Failed to load outline bookmarks.</div>';
+    container.innerHTML = '<div class="sidebar-empty-state">Failed to load outline bookmarks.</div>';
   }
 }
 
@@ -1496,7 +1959,9 @@ async function goToDestination(dest) {
 
 // --- Lazy page previews thumbnails ---
 async function renderPageThumbnails() {
-  elThumbnailsListBox.innerHTML = '';
+  const container = document.getElementById(`thumbs-tab-${activeTabId}`);
+  if (!container) return;
+  container.innerHTML = '';
   if (!pdfDoc) return;
   
   const totalPages = pdfDoc.numPages;
@@ -1508,7 +1973,7 @@ async function renderPageThumbnails() {
     
     const thumbWrapper = document.createElement('div');
     thumbWrapper.className = 'thumbnail-wrapper';
-    thumbWrapper.id = `thumb-page-${i}`;
+    thumbWrapper.id = `thumb-page-${activeTabId}-${i}`;
     if (i === 1) thumbWrapper.classList.add('active-thumb');
     
     const canvasBox = document.createElement('div');
@@ -1527,7 +1992,7 @@ async function renderPageThumbnails() {
       goToPage(i);
     });
     
-    elThumbnailsListBox.appendChild(thumbWrapper);
+    container.appendChild(thumbWrapper);
     
     // Trigger canvas render asynchronously
     renderThumbnailCanvas(i, thumbCanvas);
@@ -1557,22 +2022,33 @@ async function renderThumbnailCanvas(pageNum, canvas) {
 }
 
 function highlightActiveThumbnail(pageNum) {
-  document.querySelectorAll('.thumbnail-wrapper').forEach(el => {
+  const container = document.getElementById(`thumbs-tab-${activeTabId}`);
+  if (!container) return;
+  container.querySelectorAll('.thumbnail-wrapper').forEach(el => {
     el.classList.remove('active-thumb');
   });
-  const target = document.getElementById(`thumb-page-${pageNum}`);
+  const target = document.getElementById(`thumb-page-${activeTabId}-${pageNum}`);
   if (target) {
     target.classList.add('active-thumb');
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
 
 // --- Text searching logic ---
 function performTextSearch(searchTerm) {
-  elSearchResultsListBox.innerHTML = '';
+  const container = document.getElementById(`search-tab-${activeTabId}`);
+  if (!container) return;
+  
+  container.innerHTML = '';
   elTbSearchStatus.textContent = '';
   
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  if (activeTab) {
+    activeTab.searchTerm = searchTerm;
+  }
+  
   if (!searchTerm || !pdfDoc) {
-    elSearchResultsListBox.innerHTML = '<div class="sidebar-empty-state">Type a search term to find occurrences.</div>';
+    container.innerHTML = '<div class="sidebar-empty-state">Type a search term to find occurrences.</div>';
     return;
   }
   
@@ -1624,10 +2100,10 @@ function performTextSearch(searchTerm) {
   });
   
   if (matchCount === 0) {
-    elSearchResultsListBox.innerHTML = '<div class="sidebar-empty-state">No occurrences found.</div>';
+    container.innerHTML = '<div class="sidebar-empty-state">No occurrences found.</div>';
     elTbSearchStatus.textContent = '0 matches';
   } else {
-    elSearchResultsListBox.appendChild(listRoot);
+    container.appendChild(listRoot);
     elTbSearchStatus.textContent = `${matchCount} pages`;
   }
 }

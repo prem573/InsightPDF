@@ -230,7 +230,7 @@ ipcMain.handle('save-config', (event, config) => {
 });
 
 // Unified API Provider request gateway
-ipcMain.handle('make-api-request', async (event, { provider, apiKey, model, prompt, images }) => {
+ipcMain.handle('make-api-request', async (event, { provider, apiKey, model, prompt, images, ollamaUrl }) => {
   try {
     let url = '';
     let headers = { 'Content-Type': 'application/json' };
@@ -324,7 +324,7 @@ ipcMain.handle('make-api-request', async (event, { provider, apiKey, model, prom
         messages: [{ role: 'user', content: content }]
       };
     } else if (provider === 'ollama') {
-      url = 'http://localhost:11434/api/generate';
+      url = (ollamaUrl || 'http://localhost:11434') + '/api/generate';
       body = {
         model: model || 'llama3',
         prompt: prompt,
@@ -373,6 +373,240 @@ ipcMain.handle('make-api-request', async (event, { provider, apiKey, model, prom
   } catch (e) {
     console.error("API execution failed:", e);
     throw new Error(e.message || "Failed to contact API provider");
+  }
+});
+
+// Unified API Provider request gateway (STREAMING version)
+const activeRequests = new Map();
+
+ipcMain.on('cancel-streaming-api-request', (event, { requestId }) => {
+  const controller = activeRequests.get(requestId);
+  if (controller) {
+    controller.abort();
+    activeRequests.delete(requestId);
+  }
+});
+
+ipcMain.on('make-streaming-api-request', async (event, { requestId, provider, apiKey, model, prompt, images, ollamaUrl }) => {
+  const controller = new AbortController();
+  activeRequests.set(requestId, controller);
+
+  try {
+    let url = '';
+    let headers = { 'Content-Type': 'application/json' };
+    let body = {};
+
+    if (provider === 'gemini') {
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-1.5-flash'}:streamGenerateContent?alt=sse&key=${apiKey}`;
+      const parts = [{ text: prompt }];
+      if (images && images.length > 0) {
+        images.forEach(img => {
+          parts.push({
+            inlineData: { mimeType: 'image/jpeg', data: img }
+          });
+        });
+      }
+      body = {
+        contents: [{ parts: parts }]
+      };
+    } else if (provider === 'openai') {
+      url = 'https://api.openai.com/v1/chat/completions';
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      const content = [{ type: 'text', text: prompt }];
+      if (images && images.length > 0) {
+        images.forEach(img => {
+          content.push({
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+          });
+        });
+      }
+      body = {
+        model: model || 'gpt-4o-mini',
+        messages: [{ role: 'user', content: content }],
+        stream: true
+      };
+    } else if (provider === 'nvidia') {
+      url = 'https://integrate.api.nvidia.com/v1/chat/completions';
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      const content = [{ type: 'text', text: prompt }];
+      const hasImages = images && images.length > 0;
+      if (hasImages) {
+        images.forEach(img => {
+          content.push({
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+          });
+        });
+      }
+      body = {
+        model: hasImages ? 'meta/llama-3.2-90b-vision-instruct' : (model || 'nvidia/nemotron-3-super-120b-a12b'),
+        messages: [{ role: 'user', content: content }],
+        stream: true
+      };
+      if (hasImages) {
+        body.temperature = 1.0;
+        body.top_p = 1.0;
+        body.max_tokens = 2048;
+      } else {
+        body.temperature = 1.0;
+        body.top_p = 0.95;
+        body.max_tokens = 16384;
+        body.reasoning_budget = 16384;
+        body.chat_template_kwargs = { "enable_thinking": true };
+      }
+    } else if (provider === 'claude') {
+      url = 'https://api.anthropic.com/v1/messages';
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      const content = [{ type: 'text', text: prompt }];
+      if (images && images.length > 0) {
+        images.forEach(img => {
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: img
+            }
+          });
+        });
+      }
+      body = {
+        model: model || 'claude-3-5-sonnet-20240620',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: content }],
+        stream: true
+      };
+    } else if (provider === 'ollama') {
+      url = (ollamaUrl || 'http://localhost:11434') + '/api/generate';
+      body = {
+        model: model || 'llama3',
+        prompt: prompt,
+        stream: true
+      };
+      if (images && images.length > 0) {
+        body.images = images;
+      }
+    } else {
+      throw new Error(`Unknown provider: ${provider}`);
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let parsedError = errorText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        parsedError = errorJson.error?.message || errorJson.message || errorText;
+      } catch (parseEx) {}
+      throw new Error(`API Error (${response.status}): ${parsedError}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedBuffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      accumulatedBuffer += decoder.decode(value, { stream: true });
+      const lines = accumulatedBuffer.split('\n');
+      accumulatedBuffer = lines.pop(); // keep last partial line
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (provider === 'gemini' || provider === 'openai' || provider === 'nvidia' || provider === 'claude') {
+          if (trimmed.startsWith('data: ')) {
+            const dataText = trimmed.substring(6).trim();
+            if (dataText === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(dataText);
+              if (provider === 'gemini') {
+                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                  event.sender.send(`stream-chunk-${requestId}`, { chunk: text });
+                }
+              } else if (provider === 'openai' || provider === 'nvidia') {
+                const delta = parsed.choices?.[0]?.delta;
+                if (delta) {
+                  if (delta.reasoning_content) {
+                    event.sender.send(`stream-chunk-${requestId}`, { chunk: delta.reasoning_content, isReasoning: true });
+                  } else if (delta.content) {
+                    event.sender.send(`stream-chunk-${requestId}`, { chunk: delta.content });
+                  }
+                }
+              } else if (provider === 'claude') {
+                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  event.sender.send(`stream-chunk-${requestId}`, { chunk: parsed.delta.text });
+                }
+              }
+            } catch (e) {}
+          }
+        } else if (provider === 'ollama') {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed.response) {
+              event.sender.send(`stream-chunk-${requestId}`, { chunk: parsed.response });
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (accumulatedBuffer.trim()) {
+      const trimmed = accumulatedBuffer.trim();
+      if (provider === 'ollama') {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed.response) {
+            event.sender.send(`stream-chunk-${requestId}`, { chunk: parsed.response });
+          }
+        } catch (e) {}
+      } else if (trimmed.startsWith('data: ')) {
+        const dataText = trimmed.substring(6).trim();
+        if (dataText !== '[DONE]') {
+          try {
+            const parsed = JSON.parse(dataText);
+            if (provider === 'gemini') {
+              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) event.sender.send(`stream-chunk-${requestId}`, { chunk: text });
+            } else if (provider === 'openai' || provider === 'nvidia') {
+              const delta = parsed.choices?.[0]?.delta;
+              if (delta) {
+                if (delta.reasoning_content) {
+                  event.sender.send(`stream-chunk-${requestId}`, { chunk: delta.reasoning_content, isReasoning: true });
+                } else if (delta.content) {
+                  event.sender.send(`stream-chunk-${requestId}`, { chunk: delta.content });
+                }
+              }
+            } else if (provider === 'claude') {
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                event.sender.send(`stream-chunk-${requestId}`, { chunk: parsed.delta.text });
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    event.sender.send(`stream-done-${requestId}`);
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error("Streaming API request failed:", err);
+      event.sender.send(`stream-error-${requestId}`, { error: err.message });
+    }
+  } finally {
+    activeRequests.delete(requestId);
   }
 });
 
