@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InsightPDF - AI-Powered PDF Assistant</title>
+  <!-- Outfit Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-theme"> <!-- Default to Acrobat light theme, class can be changed to dark-theme -->
+  <div class="app-container">
+    <!-- 1. Top Menu Bar (Desktop style) -->
+    <nav class="app-menu-bar">
+      <div class="menu-logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <path d="M12 18v-4"/>
+          <path d="M9 15h6"/>
+        </svg>
+        <span class="logo-text">Insight<span class="accent-text">PDF</span></span>
+      </div>
+
+      <div class="menu-items-group">
+        <div class="menu-item">
+          <span class="menu-trigger">File</span>
+          <div class="menu-dropdown">
+            <div class="menu-action" id="menu-open-pdf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Open PDF...
+              <span class="menu-shortcut">Ctrl+O</span>
+            </div>
+            <div class="menu-action disabled" id="menu-save-summary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Summary
+              <span class="menu-shortcut">Ctrl+S</span>
+            </div>
+            <div class="menu-action disabled" id="menu-export-md">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export as Markdown...
+            </div>
+            <div class="menu-action disabled" id="menu-print-pdf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print PDF...
+              <span class="menu-shortcut">Ctrl+P</span>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-action" id="menu-settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Preferences...
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-action" id="menu-exit">Exit</div>
+          </div>
+        </div>
+
+        <div class="menu-item">
+          <span class="menu-trigger">Edit</span>
+          <div class="menu-dropdown">
+            <div class="menu-action disabled" id="menu-copy-summary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy Summary
+            </div>
+            <div class="menu-action" id="menu-clear-chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              Clear Chat History
+            </div>
+          </div>
+        </div>
+
+        <div class="menu-item">
+          <span class="menu-trigger">View</span>
+          <div class="menu-dropdown">
+            <div class="menu-action" id="menu-zoom-in">Zoom In<span class="menu-shortcut">Ctrl++</span></div>
+            <div class="menu-action" id="menu-zoom-out">Zoom Out<span class="menu-shortcut">Ctrl+-</span></div>
+            <div class="menu-action" id="menu-zoom-fit">Fit Page Width</div>
+            <div class="menu-divider"></div>
+            <div class="menu-action" id="menu-toggle-left-sidebar">Toggle Left Sidebar</div>
+            <div class="menu-action" id="menu-toggle-right-panel">Toggle AI Panel</div>
+            <div class="menu-divider"></div>
+            <div class="menu-action" id="menu-toggle-theme">Toggle Theme (Light/Dark)</div>
+          </div>
+        </div>
+
+        <div class="menu-item">
+          <span class="menu-trigger">Tools</span>
+          <div class="menu-dropdown">
+            <div class="menu-action" id="menu-tool-summarize">AI Summarizer</div>
+            <div class="menu-action" id="menu-tool-chat">AI Chat Q&A</div>
+          </div>
+        </div>
+
+        <div class="menu-item">
+          <span class="menu-trigger">Help</span>
+          <div class="menu-dropdown">
+            <div class="menu-action" id="menu-help-docs">Help & Documentation</div>
+            <div class="menu-action" id="menu-about">About InsightPDF</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="window-title-text" id="header-file-name">InsightPDF - AI-Powered Assistant</div>
+
+      <div class="menu-window-controls">
+        <button id="btn-theme-toggle-top" class="top-action-btn" title="Toggle Theme">
+          <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="icon icon-moon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button id="btn-settings-top" class="top-action-btn" title="Preferences">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <div class="window-buttons">
+          <button id="btn-win-min" class="win-btn" title="Minimize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button id="btn-win-max" class="win-btn" title="Maximize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          </button>
+          <button id="btn-win-close" class="win-btn win-close" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 2. Application Tab Strip -->
+    <div class="app-tab-strip">
+      <button class="app-tab active" id="tab-home">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Home
+      </button>
+      <button class="app-tab" id="tab-tools-directory">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Tools
+      </button>
+      <button class="app-tab hidden" id="tab-active-pdf">
+        <svg class="tab-icon text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span id="active-pdf-title">Document.pdf</span>
+        <span class="tab-close-btn" id="btn-close-pdf-tab" title="Close document">&times;</span>
+      </button>
+    </div>
+
+    <!-- 3. Global PDF Toolbar -->
+    <div class="app-toolbar hidden" id="global-toolbar">
+      <div class="toolbar-section left-actions">
+        <button id="btn-open-file" class="toolbar-btn" title="Open PDF File">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
+        <button id="btn-save-summary-tb" class="toolbar-btn" title="Save Summary" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+        </button>
+        <button id="btn-print-pdf-tb" class="toolbar-btn" title="Print Document" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+        </button>
+        <button id="btn-share-summary-tb" class="toolbar-btn" title="Copy Summary" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="toolbar-section search-actions">
+        <div class="toolbar-search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="tb-search-input" placeholder="Search in document..." />
+          <span class="search-status" id="tb-search-status"></span>
+        </div>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="toolbar-section nav-actions">
+        <button id="btn-prev-page" class="toolbar-btn" title="Previous Page" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </button>
+        <div class="toolbar-page-indicator">
+          <input type="number" id="tb-page-number" class="tb-page-input" value="1" min="1" disabled />
+          <span class="page-slash">/</span>
+          <span id="total-pages" class="total-pages">0</span>
+        </div>
+        <button id="btn-next-page" class="toolbar-btn" title="Next Page" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="toolbar-section tool-selectors">
+        <button id="btn-cursor-select" class="toolbar-btn active" title="Selection Tool">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+            <path d="M13 13l6 6"/>
+          </svg>
+        </button>
+        <button id="btn-cursor-hand" class="toolbar-btn" title="Pan Tool">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5"/>
+            <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+            <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+            <path d="M6 14v-1.5a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2V18a6 6 0 0 0 6 6h4a8 8 0 0 0 8-8v-3a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="toolbar-section zoom-actions">
+        <button id="btn-zoom-out" class="toolbar-btn" title="Zoom Out" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <div class="zoom-select-container">
+          <select id="tb-zoom-select" disabled>
+            <option value="0.5">50%</option>
+            <option value="0.75">75%</option>
+            <option value="1.0">100%</option>
+            <option value="1.2" selected>120%</option>
+            <option value="1.5">150%</option>
+            <option value="2.0">200%</option>
+            <option value="3.0">300%</option>
+            <option value="fit-width">Fit Width</option>
+          </select>
+        </div>
+        <span id="zoom-value" class="zoom-value hidden">120%</span> <!-- Hidden but kept for JS compatibility -->
+        <button id="btn-zoom-in" class="toolbar-btn" title="Zoom In" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button id="btn-zoom-fit" class="toolbar-btn" title="Fit to Width" disabled>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="toolbar-divider"></div>
+      
+      <div class="toolbar-section app-settings-action">
+        <button id="btn-settings" class="toolbar-btn" title="Preferences">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Main Tab Pages Container -->
+    <div class="app-tab-pages">
+      
+      <!-- PAGE A: HOME VIEW (Startup Dashboard) -->
+      <div class="tab-page active-page" id="page-home">
+        <div class="home-dashboard">
+          <div class="hero-section">
+            <div class="hero-logo-box">
+              <svg class="hero-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <path d="M12 18v-4"/>
+                <path d="M9 15h6"/>
+              </svg>
+            </div>
+            <h1>Welcome to InsightPDF</h1>
+            <p class="hero-subtitle">The professional, AI-powered desktop document viewer and research assistant.</p>
+          </div>
+
+          <!-- Drag and drop zone -->
+          <div class="drop-zone" id="home-dropzone">
+            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <h3>Drag & Drop a PDF here</h3>
+            <p>or select a document to start reading and generating AI insights</p>
+            <button id="btn-welcome-open" class="btn btn-primary btn-lg">Open PDF File</button>
+          </div>
+
+          <div class="dashboard-grid">
+            <!-- Features card -->
+            <div class="dashboard-card features-card">
+              <h3>AI Assistant Features</h3>
+              <ul class="features-list">
+                <li>
+                  <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                  <div class="feature-info">
+                    <strong>Smart Summarizer</strong>
+                    <span>Condense multi-page documents instantly based on page ranges and styles.</span>
+                  </div>
+                </li>
+                <li>
+                  <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+                  <div class="feature-info">
+                    <strong>Context-Aware Chat Q&A</strong>
+                    <span>Have natural conversations and ask complex questions about your documents.</span>
+                  </div>
+                </li>
+                <li>
+                  <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+                  <div class="feature-info">
+                    <strong>Multi-Model Engine</strong>
+                    <span>Connect directly to Gemini, OpenAI GPT, Claude, or local Ollama LLMs.</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Getting started / API setup -->
+            <div class="dashboard-card status-card">
+              <h3>Getting Started Checklist</h3>
+              <div class="checklist-items">
+                <div class="check-item done" id="check-install">
+                  <div class="check-box">&#10004;</div>
+                  <span>InsightPDF desktop client loaded</span>
+                </div>
+                <div class="check-item done">
+                  <div class="check-box">&#10004;</div>
+                  <span>PDF.js parsing engine initialized</span>
+                </div>
+                <div class="check-item" id="check-keys">
+                  <div class="check-box"></div>
+                  <span>Configure API Provider &amp; Keys in <a href="#" id="link-setup-keys">Settings</a></span>
+                </div>
+                <div class="check-item" id="check-pdf">
+                  <div class="check-box"></div>
+                  <span>Open your first PDF file</span>
+                </div>
+              </div>
+              <div class="recent-heading">Recent Files</div>
+              <div class="recent-list" id="dashboard-recent-files">
+                <div class="recent-empty">No recently opened files. Opened documents will appear here.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE B: TOOLS DIRECTORY VIEW -->
+      <div class="tab-page" id="page-tools">
+        <div class="tools-directory">
+          <div class="tools-header">
+            <h2>InsightPDF AI Tools</h2>
+            <p>Select an AI capability to apply to your documents and documents folders.</p>
+          </div>
+          <div class="tools-grid">
+            <div class="tool-card active-tool" id="tool-card-summarizer">
+              <div class="tool-icon-wrapper red-tint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="tool-content">
+                <h3>Document Summarizer</h3>
+                <p>Generate highly structured, contextual summaries of complete PDFs or chosen page ranges using state-of-the-art LLMs.</p>
+                <span class="tool-status">Ready</span>
+              </div>
+            </div>
+
+            <div class="tool-card active-tool" id="tool-card-chat">
+              <div class="tool-icon-wrapper blue-tint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              </div>
+              <div class="tool-content">
+                <h3>Context Chat Q&A</h3>
+                <p>Query specific facts, extract data tables, define terms, and explore details directly with the AI inside your document context.</p>
+                <span class="tool-status">Ready</span>
+              </div>
+            </div>
+
+            <div class="tool-card placeholder-tool">
+              <div class="tool-icon-wrapper green-tint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+              </div>
+              <div class="tool-content">
+                <h3>AI Smart Highlighting</h3>
+                <p>Automatically find and color-highlight sections matching key research domains, topics, or custom keywords.</p>
+                <span class="tool-status-tag">Coming Soon</span>
+              </div>
+            </div>
+
+            <div class="tool-card placeholder-tool">
+              <div class="tool-icon-wrapper orange-tint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12H3M12 3v18"/></svg>
+              </div>
+              <div class="tool-content">
+                <h3>Document Comparator</h3>
+                <p>Load two PDF files and visually compare differences side-by-side or cross-analyze topics via AI prompts.</p>
+                <span class="tool-status-tag">Coming Soon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE C: ACTIVE DOCUMENT VIEW (Slick Reader layout) -->
+      <div class="tab-page" id="page-viewer">
+        <div class="workspace">
+          
+          <!-- 5. Collapsible Left Sidebar -->
+          <aside class="left-sidebar" id="left-sidebar">
+            <div class="sidebar-icons-strip">
+              <button id="btn-sidebar-thumbs" class="sidebar-icon-btn active" title="Page Thumbnails">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>
+                </svg>
+              </button>
+              <button id="btn-sidebar-bookmarks" class="sidebar-icon-btn" title="Document Outline (Bookmarks)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+              </button>
+              <button id="btn-sidebar-search" class="sidebar-icon-btn" title="Text Search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="sidebar-expanded-panel" id="left-sidebar-panel">
+              <!-- Sidebar Section: Page Thumbnails -->
+              <div class="sidebar-section-content active-section" id="sidebar-content-thumbnails">
+                <div class="sidebar-section-header">
+                  <h4>Page Previews</h4>
+                </div>
+                <div class="thumbnails-container" id="thumbnails-list-box">
+                  <!-- Generated dynamically in JS -->
+                </div>
+              </div>
+
+              <!-- Sidebar Section: Bookmarks -->
+              <div class="sidebar-section-content" id="sidebar-content-bookmarks">
+                <div class="sidebar-section-header">
+                  <h4>Bookmarks</h4>
+                </div>
+                <div class="bookmarks-container" id="bookmarks-list-box">
+                  <div class="sidebar-empty-state">No bookmarks extracted from PDF outline.</div>
+                </div>
+              </div>
+
+              <!-- Sidebar Section: Search Results -->
+              <div class="sidebar-section-content" id="sidebar-content-search">
+                <div class="sidebar-section-header">
+                  <h4>Search Matches</h4>
+                </div>
+                <div class="search-sidebar-box">
+                  <div class="search-sidebar-input-row">
+                    <input type="text" id="sidebar-search-term" placeholder="Search words..." />
+                    <button id="btn-sidebar-search-trigger" class="btn btn-primary btn-sm">Find</button>
+                  </div>
+                  <div class="search-results-list" id="search-results-list-box">
+                    <div class="sidebar-empty-state">Type a search term to find occurrences.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- 6. Central PDF Page Viewport -->
+          <section class="viewer-panel" id="center-viewer-panel">
+            <div class="scanned-warning-banner hidden" id="scanned-pdf-warning">
+              <svg class="icon text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span><strong>Scanned PDF Detected:</strong> No extractable text layer found. InsightPDF will use Multimodal AI Vision to read and analyze pages visually.</span>
+            </div>
+            <!-- Canvas Viewport -->
+            <div class="canvas-viewport" id="viewport-container">
+              
+              <!-- Hover Page Nav Chevrons -->
+              <button id="btn-prev-page-overlay" class="page-overlay-nav prev-overlay" title="Previous Page" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              
+              <button id="btn-next-page-overlay" class="page-overlay-nav next-overlay" title="Next Page" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+
+              <div class="welcome-overlay hidden" id="welcome-view">
+                <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="12" y1="18" x2="12" y2="12"/>
+                  <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+                <h2>No PDF Document Loaded</h2>
+                <p>Open a PDF file to begin reading and summarizing.</p>
+                <button id="btn-welcome-open-fallback" class="btn btn-primary btn-lg">Open PDF Document</button>
+              </div>
+              
+              <div class="loading-overlay hidden" id="pdf-loading-indicator">
+                <div class="spinner-box">
+                  <div class="spinner"></div>
+                  <p>Loading document pages...</p>
+                </div>
+              </div>
+
+              <!-- Main PDF display element -->
+              <div class="canvas-shadow-box">
+                <canvas id="pdf-canvas" class="hidden"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- 7. Collapsible Right AI Assistant Panel -->
+          <aside class="assistant-panel" id="right-assistant-panel">
+            <div class="panel-tabs">
+              <button id="tab-summarize" class="tab-btn active">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                Summarizer
+              </button>
+              <button id="tab-chat" class="tab-btn" disabled>
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+                Chat Q&A
+              </button>
+            </div>
+
+            <!-- Tab Contents: Summarizer -->
+            <div id="content-summarize" class="tab-content active">
+              <div class="options-container">
+                <h3 class="section-title">Summary Parameters</h3>
+                
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="summary-length">Length</label>
+                    <select id="summary-length" class="form-control">
+                      <option value="brief">Brief (~1 paragraph)</option>
+                      <option value="medium" selected>Medium (Standard)</option>
+                      <option value="detailed">Detailed (In-depth)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group col-6">
+                    <label for="summary-style">Style</label>
+                    <select id="summary-style" class="form-control">
+                      <option value="bullets" selected>Bullet points</option>
+                      <option value="paragraphs">Paragraph breakdown</option>
+                      <option value="key_takeaways">Key Takeaways</option>
+                      <option value="exec_summary">Executive Summary</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="summary-pages">Page Range</label>
+                    <select id="summary-pages" class="form-control">
+                      <option value="all" selected>All Pages</option>
+                      <option value="current">Current Page Only</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+                  <div class="form-group col-6 hidden" id="custom-pages-group">
+                    <label for="custom-pages-input">Range (e.g. 1-5)</label>
+                    <input type="text" id="custom-pages-input" class="form-control" placeholder="e.g., 1-3, 5">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="custom-instructions">Custom Instructions (Optional)</label>
+                  <textarea id="custom-instructions" class="form-control" rows="2" placeholder="e.g. Focus on financial statistics, or translate to French..."></textarea>
+                </div>
+
+                <button id="btn-generate-summary" class="btn btn-primary btn-block" disabled>
+                  Generate Summary
+                </button>
+              </div>
+
+              <!-- Summary Output -->
+              <div class="summary-output-container">
+                <div class="output-header">
+                  <h4>Summary Result</h4>
+                  <div class="output-actions">
+                    <button id="btn-copy-summary" class="btn btn-icon btn-sm" title="Copy to clipboard" disabled>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    </button>
+                    <button id="btn-export-summary" class="btn btn-icon btn-sm" title="Export as Markdown File" disabled>
+                      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="summary-body" id="summary-text-view">
+                  <div class="empty-state">
+                    <p>Summary will appear here. Select configurations and click "Generate Summary".</p>
+                  </div>
+                </div>
+                
+                <div class="generating-state hidden" id="summary-generating-view">
+                  <div class="glow-spinner"></div>
+                  <p>Analyzing document content...</p>
+                  <span class="subtext">Sending chunks to LLM Provider</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab Contents: Chat -->
+            <div id="content-chat" class="tab-content">
+              <div class="chat-container">
+                <!-- Messages view -->
+                <div class="chat-messages" id="chat-messages-box">
+                  <div class="system-message">
+                    <p><strong>Chat initialized.</strong> Ask questions regarding the loaded PDF document. The assistant has access to the full text context.</p>
+                  </div>
+                </div>
+
+                <!-- Input area -->
+                <div class="chat-input-area">
+                  <textarea id="chat-input-text" class="form-control" rows="2" placeholder="Ask a question about this PDF..."></textarea>
+                  <button id="btn-send-chat" class="btn btn-primary" title="Send Message">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Thin Toggle Right Sidebar Button (Adobe Style) -->
+          <div class="right-sidebar-toggle-bar">
+            <button id="btn-right-sidebar-toggle" class="sidebar-toggle-btn" title="Toggle AI Assistant Panel">
+              <span>A</span>
+              <span>I</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Slide-out Settings Drawer (Preferences modal) -->
+    <div class="settings-drawer-overlay hidden" id="settings-overlay">
+      <div class="settings-drawer">
+        <div class="drawer-header">
+          <h3>Configuration Panel</h3>
+          <button id="btn-close-settings" class="btn btn-icon">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="drawer-body">
+          <div class="settings-section">
+            <h4>Active AI Provider</h4>
+            <div class="provider-grid">
+              <div class="provider-card active" data-provider="gemini">
+                <span class="provider-title">Gemini</span>
+                <span class="provider-desc">Google AI</span>
+              </div>
+              <div class="provider-card" data-provider="openai">
+                <span class="provider-title">OpenAI</span>
+                <span class="provider-desc">GPT Models</span>
+              </div>
+              <div class="provider-card" data-provider="claude">
+                <span class="provider-title">Claude</span>
+                <span class="provider-desc">Anthropic</span>
+              </div>
+              <div class="provider-card" data-provider="ollama">
+                <span class="provider-title">Ollama</span>
+                <span class="provider-desc">Local AI</span>
+              </div>
+              <div class="provider-card" data-provider="nvidia">
+                <span class="provider-title">NVIDIA NIM</span>
+                <span class="provider-desc">NVIDIA APIs</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration parameters that change based on Provider -->
+          <div class="settings-section">
+            <h4 id="credentials-section-title">Gemini API Credentials</h4>
+            
+            <div class="form-group" id="group-api-key">
+              <label for="setting-api-key">API Key</label>
+              <div class="input-with-button">
+                <input type="password" id="setting-api-key" class="form-control" placeholder="Enter API Key">
+                <button id="btn-toggle-key-visibility" class="btn btn-secondary">Show</button>
+              </div>
+            </div>
+
+            <div class="form-group" id="group-ollama-url" style="display: none;">
+              <label for="setting-ollama-url">Ollama Server URL</label>
+              <input type="text" id="setting-ollama-url" class="form-control" value="http://localhost:11434">
+            </div>
+
+            <div class="form-group">
+              <label for="setting-model">Model Name</label>
+              <select id="setting-model" class="form-control">
+                <!-- Populated dynamically via JS -->
+              </select>
+              <input type="text" id="setting-custom-model" class="form-control hidden mt-2" placeholder="Custom Model Name">
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-footer">
+          <button id="btn-save-settings" class="btn btn-primary btn-block">Save Configuration</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Node modules loaded relative scripts (Vite/Electron compatible) -->
+  <script src="node_modules/pdfjs-dist/build/pdf.min.js"></script>
+  <!-- Load Marked library via CDN for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

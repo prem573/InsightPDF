@@ -1,0 +1,55 @@
+{
+  "name": "insight-pdf",
+  "version": "1.0.0",
+  "description": "InsightPDF - Read and Summarize PDFs using AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder build --dir",
+    "dist": "electron-builder build"
+  },
+  "keywords": [
+    "pdf",
+    "summarizer",
+    "electron",
+    "gemini",
+    "openai",
+    "claude",
+    "ollama"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^3.4.120"
+  },
+  "build": {
+    "appId": "com.insightpdf.app",
+    "productName": "InsightPDF",
+    "win": {
+      "target": "nsis",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "InsightPDF",
+      "runAfterFinish": true
+    },
+    "fileAssociations": [
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "role": "Viewer"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
