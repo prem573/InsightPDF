@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -27,12 +25,18 @@ jobs:
       - name: Install Dependencies
         run: npm install --omit=optional
 
-      - name: Build & Publish Release (Tags)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Update Version in package.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const parts = pkg.version.split('.');
+            pkg.version = \`\${parts[0]}.\${parts[1]}.\${process.env.GITHUB_RUN_NUMBER || 0}\`;
+            console.log('Building version:', pkg.version);
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2), 'utf8');
+          "
+
+      - name: Build & Publish Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder build --win --publish always
-
-      - name: Build Check (Branch Push)
-        if: "!startsWith(github.ref, 'refs/tags/')"
-        run: npx electron-builder build --win --publish never

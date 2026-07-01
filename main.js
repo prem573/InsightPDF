@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
 let pdfToOpen = null;
@@ -53,6 +54,15 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    
+    // Check for updates automatically on startup (packaged builds only)
+    if (app.isPackaged) {
+      setTimeout(() => {
+        autoUpdater.checkForUpdatesAndNotify().catch(err => {
+          console.error("Error during automatic update check:", err);
+        });
+      }, 3000);
+    }
   });
 
   mainWindow.webContents.on('did-start-loading', () => {
@@ -97,6 +107,55 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Configure auto-updater
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+// Auto-updater event listeners
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for update...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', info);
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Update not available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-not-available', info);
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('Error in auto-updater:', err);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', err.message || err.toString());
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', info);
+  }
+  
+  // Ask the user to restart and install the update
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Update Ready',
+    message: `A new version of InsightPDF (${info.version}) has been downloaded. Restart now to update?`,
+    buttons: ['Restart Now', 'Later']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+});
+
 // --- IPC Handlers ---
 
 // File associations and selection
@@ -105,6 +164,23 @@ ipcMain.handle('get-start-pdf-path', () => {
   const pathToSend = pdfToOpen;
   pdfToOpen = null; // consume once
   return pathToSend;
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    return await autoUpdater.checkForUpdates();
+  } catch (err) {
+    console.error("Failed to check for updates:", err);
+    throw new Error(err.message || err.toString());
+  }
+});
+
+ipcMain.on('install-update', () => {
+  autoUpdater.quitAndInstall();
 });
 
 ipcMain.handle('select-pdf', async () => {

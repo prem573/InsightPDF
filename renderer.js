@@ -210,6 +210,66 @@ async function initApp() {
   if (startupPdfPath) {
     await loadPdf(startupPdfPath);
   }
+
+  // Display App Version
+  try {
+    const appVersion = await window.api.getAppVersion();
+    const versionDisplay = document.getElementById('app-version-display');
+    if (versionDisplay) {
+      versionDisplay.textContent = appVersion;
+    }
+  } catch (e) {
+    console.error("Failed to fetch app version:", e);
+  }
+
+  // Setup Update Checker Event Bindings and Listeners
+  const elBtnCheckUpdates = document.getElementById('btn-check-updates');
+  const elUpdateStatusText = document.getElementById('update-status-text');
+
+  if (elBtnCheckUpdates && elUpdateStatusText) {
+    elBtnCheckUpdates.addEventListener('click', async () => {
+      elUpdateStatusText.style.display = 'block';
+      elUpdateStatusText.style.color = '';
+      elUpdateStatusText.textContent = 'Checking for updates...';
+      elBtnCheckUpdates.disabled = true;
+
+      try {
+        await window.api.checkForUpdates();
+      } catch (err) {
+        console.error("Update check failed:", err);
+        elUpdateStatusText.textContent = 'Failed to check (only supported in packaged build).';
+        elUpdateStatusText.style.color = '#e53935';
+        elBtnCheckUpdates.disabled = false;
+      }
+    });
+
+    window.api.onUpdateAvailable((info) => {
+      elUpdateStatusText.style.display = 'block';
+      elUpdateStatusText.style.color = '';
+      elUpdateStatusText.textContent = `Update available (v${info.version}). Downloading...`;
+    });
+
+    window.api.onUpdateNotAvailable(() => {
+      elUpdateStatusText.style.display = 'block';
+      elUpdateStatusText.style.color = '';
+      elUpdateStatusText.textContent = 'You are running the latest version.';
+      elBtnCheckUpdates.disabled = false;
+    });
+
+    window.api.onUpdateDownloaded((info) => {
+      elUpdateStatusText.style.display = 'block';
+      elUpdateStatusText.style.color = '#2e7d32';
+      elUpdateStatusText.textContent = `Version ${info.version} downloaded.`;
+      elBtnCheckUpdates.disabled = false;
+    });
+
+    window.api.onUpdateError((err) => {
+      elUpdateStatusText.style.display = 'block';
+      elUpdateStatusText.style.color = '#e53935';
+      elUpdateStatusText.textContent = `Update error: ${err}`;
+      elBtnCheckUpdates.disabled = false;
+    });
+  }
 }
 
 // Apply theme to document body

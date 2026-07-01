@@ -14,5 +14,28 @@ contextBridge.exposeInMainWorld('api', {
   },
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
-  close: () => ipcRenderer.send('window-close')
+  close: () => ipcRenderer.send('window-close'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.send('install-update'),
+  onUpdateAvailable: (callback) => {
+    const sub = (event, info) => callback(info);
+    ipcRenderer.on('update-available', sub);
+    return () => ipcRenderer.removeListener('update-available', sub);
+  },
+  onUpdateNotAvailable: (callback) => {
+    const sub = (event, info) => callback(info);
+    ipcRenderer.on('update-not-available', sub);
+    return () => ipcRenderer.removeListener('update-not-available', sub);
+  },
+  onUpdateDownloaded: (callback) => {
+    const sub = (event, info) => callback(info);
+    ipcRenderer.on('update-downloaded', sub);
+    return () => ipcRenderer.removeListener('update-downloaded', sub);
+  },
+  onUpdateError: (callback) => {
+    const sub = (event, err) => callback(err);
+    ipcRenderer.on('update-error', sub);
+    return () => ipcRenderer.removeListener('update-error', sub);
+  }
 });
